@@ -1,19 +1,21 @@
 #include <iostream>
 #include <memory>
 
-class BinarySearchTree
-{
+class BinarySearchTree {
 public:
-    BinarySearchTree() : size(0) {}
     class Node {
         friend class BinarySearchTree;
-        friend std::ostream & operator<<(std::ostream &os, const BinarySearchTree& p);
+
+        friend void release(std::shared_ptr<Node>, unsigned int n);
+
+        friend std::ostream &operator<<(std::ostream &os, const BinarySearchTree &p);
+
     public:
         static int instanceCount; //number of instances still alive
-        ~Node() {instanceCount--;} // keep public so unique_ptr can access it
+        ~Node() { instanceCount--; } // keep public so unique_ptr can access it
 
     private:
-        Node(int i) : content(i) { instanceCount++;} //keep private so nobody outside can create it
+        Node(int i) : content(i) { instanceCount++; } //keep private so nobody outside can create it
 
         std::shared_ptr<Node> left;     //pointer to left node
         std::shared_ptr<Node> right;     //pointer to right node
@@ -21,38 +23,47 @@ public:
         int content;                    //value of the node
     };
 
+    BinarySearchTree() : size(0) {}
+
+    ~BinarySearchTree() {
+        if (root) {
+            release(root, size);
+            root.reset();
+        }
+    }
+
     //adds new node with value i to the end of the list
     void addToEnd(int i) {
         std::shared_ptr<Node> toAdd{new Node(i)};
         appendToEnd(std::move(toAdd));
     }
 
-    void appendToEnd(std::shared_ptr<Node>&& toAdd) {
+    void appendToEnd(std::shared_ptr<Node> &&toAdd) {
         std::shared_ptr<Node> current = root;
-        if(!root) {
+        if (!root) {
             root = toAdd;
             size++;
             return;
         }
         std::shared_ptr<Node> previous;
 
-        while(current) {
-            if(toAdd->content < current->content) {
+        while (current) {
+            if (toAdd->content < current->content) {
                 previous = current;
                 current = current->left;
             }
-            else if(toAdd->content > current->content) {
+            else if (toAdd->content > current->content) {
                 previous = current;
                 current = current->right;
             }
             else
                 break;
         }
-        if(!current && previous) {
-            if(toAdd->content < previous->content) {
+        if (!current && previous) {
+            if (toAdd->content < previous->content) {
                 previous->left = toAdd;
             }
-            else if(toAdd->content > previous->content) {
+            else if (toAdd->content > previous->content) {
                 previous->right = toAdd;
             }
             toAdd->parent = previous;
@@ -60,24 +71,24 @@ public:
         }
     }
 
-    friend std::ostream & operator<<(std::ostream &os, const BinarySearchTree& p);
+    friend std::ostream &operator<<(std::ostream &os, const BinarySearchTree &p);
 
 private:
     std::shared_ptr<Node> root;
     unsigned int size;
 };
+
 int BinarySearchTree::Node::instanceCount = 0;
 
-std::ostream & operator<<(std::ostream &os, const BinarySearchTree& p)
-{
+std::ostream &operator<<(std::ostream &os, const BinarySearchTree &p) {
     os << "<";
     std::shared_ptr<BinarySearchTree::Node> current = p.root;
 
     unsigned int processed = 0;
     bool fromUp = true;
     bool comingFromLeft = false;
-    while(processed != p.size) {
-        if(fromUp) {
+    while (processed != p.size) {
+        if (fromUp) {
             if (!current->left) {
                 os << current->content << ",";
                 processed++;
@@ -85,7 +96,7 @@ std::ostream & operator<<(std::ostream &os, const BinarySearchTree& p)
                     current = current->right;
                 } else {
                     fromUp = false;
-                    if(std::shared_ptr<BinarySearchTree::Node> parent = current->parent.lock()) { //if we are root we don't have parent so we have to be careful
+                    if (std::shared_ptr<BinarySearchTree::Node> parent = current->parent.lock()) { //if we are root we don't have parent so we have to be careful
                         comingFromLeft = parent->left == current;
                         current = parent;
                     }
@@ -94,20 +105,20 @@ std::ostream & operator<<(std::ostream &os, const BinarySearchTree& p)
                 current = current->left;
             }
         } else {
-            if(comingFromLeft) {
+            if (comingFromLeft) {
                 os << current->content << ",";
                 processed++;
-                if(current->right) {
+                if (current->right) {
                     current = current->right;
                     fromUp = true;
                 } else {
-                    if(std::shared_ptr<BinarySearchTree::Node> parent = current->parent.lock()) { //if we are root we don't have parent so we have to be careful
+                    if (std::shared_ptr<BinarySearchTree::Node> parent = current->parent.lock()) { //if we are root we don't have parent so we have to be careful
                         comingFromLeft = parent->left == current;
                         current = parent;
                     }
                 }
             } else {
-                if(std::shared_ptr<BinarySearchTree::Node> parent = current->parent.lock()) { //if we are root we don't have parent so we have to be careful
+                if (std::shared_ptr<BinarySearchTree::Node> parent = current->parent.lock()) { //if we are root we don't have parent so we have to be careful
                     comingFromLeft = parent->left == current;
                     current = parent;
                 }
@@ -118,6 +129,51 @@ std::ostream & operator<<(std::ostream &os, const BinarySearchTree& p)
     return os;
 }
 
+void release(std::shared_ptr<BinarySearchTree::Node> current, unsigned int size) {
+    unsigned int processed = 0;
+    bool fromUp = true;
+    bool comingFromLeft = false;
+    while (processed != size - 1) { //cannot remove itself
+        if (fromUp) {
+            if (!current->left) {
+                if (current->right) {
+                    current = current->right;
+                } else {
+                    fromUp = false;
+                    if (std::shared_ptr<BinarySearchTree::Node> parent = current->parent.lock()) { //if we are root we don't have parent so we have to be careful
+                        comingFromLeft = parent->left == current;
+                        current = parent;
+                    }
+                }
+            } else {
+                current = current->left;
+            }
+        } else {
+            if (comingFromLeft) {
+                if (current->right) {
+                    current = current->right;
+                    fromUp = true;
+                } else {
+                    current->left.reset();
+                    processed++;
+
+                    if (std::shared_ptr<BinarySearchTree::Node> parent = current->parent.lock()) { //if we are root we don't have parent so we have to be careful
+                        comingFromLeft = parent->left == current;
+                        current = parent;
+                    }
+                }
+            } else {
+                current->right.reset();
+                processed++;
+
+                if (std::shared_ptr<BinarySearchTree::Node> parent = current->parent.lock()) { //if we are root we don't have parent so we have to be careful
+                    comingFromLeft = parent->left == current;
+                    current = parent;
+                }
+            }
+        }
+    }
+}
 
 int main() {
     {
@@ -144,7 +200,7 @@ int main() {
     {
         //stack overflow scenario:
         BinarySearchTree l;
-        for(int i = 0; i < 15000; i++)
+        for (int i = 0; i < 15000; i++)
             l.addToEnd(i);
     }
     std::cout << "Instance count at the end of the test " << BinarySearchTree::Node::instanceCount << std::endl;
