@@ -129,6 +129,19 @@ int main() {
         std::cout << "test 1: should be <1,2,3,4> is" << l << std::endl;
     }
     {
+        BinarySearchTree l;
+        l.addToEnd(6);
+        l.addToEnd(2);
+        l.addToEnd(8);
+        l.addToEnd(7);
+        l.addToEnd(9);
+        l.addToEnd(4);
+        l.addToEnd(1);
+        l.addToEnd(3);
+        l.addToEnd(5);
+        std::cout << "test 1: should be <1,2,3,4,5,6,7,8,9> is" << l << std::endl;
+    }
+    {
         //stack overflow scenario:
         BinarySearchTree l;
         for(int i = 0; i < 15000; i++)
